@@ -7,38 +7,39 @@ import net.named_data.jndn.util.Blob;
 
 import java.util.concurrent.Executors;
 
-public class NdnServer implements AutoCloseable {
+/**
+ * Provides NDN endpoints
+ * /ndn/agh/weather/
+ */
+public class NdnWeatherServer implements AutoCloseable {
     private final Face face;
     private final Name baseName;
     private final KeyChain keyChain;
-    private long counter = 0;
-    private boolean shouldStop = false;
+    private final NdnWeatherController weatherController;
+    private final NdnSerializer ndnSerializer;
 
-    public static void main(String[] args) {
-        NdnServer pkserver = new NdnServer();
-    }
-
-
-    public NdnServer() {
+    NdnWeatherServer(NdnWeatherController weatherController, NdnSerializer ndnSerializer) {
         try {
-            this.face = new ThreadPoolFace(Executors.newScheduledThreadPool(1), new TcpTransport(), new TcpTransport.ConnectionInfo("localhost", 6363));
-            this.baseName = new Name("/ndn/test");
+            this.weatherController = weatherController;
+            this.ndnSerializer = ndnSerializer;
+
+            this.face = new ThreadPoolFace(Executors.newScheduledThreadPool(1), new TcpTransport(),
+                    new TcpTransport.ConnectionInfo("localhost", 6363));
+            this.baseName = new Name("/ndn/agh/weather");
             this.keyChain = new KeyChain();
 
             this.face.setCommandSigningInfo(this.keyChain, this.keyChain.getDefaultCertificateName());
             this.face.registerPrefix(this.baseName, new OnInterestCallback() {
                 @Override
                 public void onInterest(Name prefix, Interest interest, Face face, long interestFilterId, InterestFilter filter) {
-                    System.out.println("jNDN " + interest.getName());
-                    String content = String.format("jNDN LINE %d", counter);
-                    counter++;
-
                     Data data = new Data(interest.getName());
                     MetaInfo meta = new MetaInfo();
                     meta.setFreshnessPeriod(5000);
                     data.setMetaInfo(meta);
+                    System.out.println(String.format("Name = %s", interest.getName()));
 
-                    data.setContent(new Blob(content.getBytes()));
+                    String response = processRequest(interest.getName());
+                    data.setContent(new Blob(response));
 
                     try {
                         keyChain.sign(data, keyChain.getDefaultCertificateName());
@@ -46,26 +47,26 @@ public class NdnServer implements AutoCloseable {
                     } catch (Exception ex) {
                         throw new RuntimeException(ex);
                     }
-                    shouldStop = true;
                 }
             }, new OnRegisterFailed() {
                 @Override
                 public void onRegisterFailed(Name prefix) {
                     System.out.println("jNDN: failed to register prefix");
-                    shouldStop = true;
                 }
             });
             System.out.println("Prefix registered");
 
-            while (!shouldStop) {
-                System.out.println("LOOP");
+            while (true) {
                 face.processEvents();
-                Thread.sleep(500);
+                Thread.sleep(25);
             }
-            close();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private String processRequest(Name prefix) {
+        return ndnSerializer.serialize(weatherController.processRequest(prefix));
     }
 
     @Override

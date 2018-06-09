@@ -1,14 +1,19 @@
 package pl.edu.agh.sm.weather;
 
-import retrofit2.Call;
-import retrofit2.http.GET;
-import retrofit2.http.Query;
+import io.vavr.control.Try;
+import lombok.RequiredArgsConstructor;
 
 import java.util.Map;
 
-public interface WeatherService {
+@RequiredArgsConstructor
+public class WeatherService {
 
-    @GET("/weather")
-    Call<Map<String, Object>> getWeather(@Query("q") String cityName);
+    private final OpenWeatherMapService openWeatherMapService;
+
+    public Try<Map<String, Object>> getWeather(String city, long time) {
+        return Try.of(() -> openWeatherMapService.getWeather(city, time)
+                .execute()
+                .body());
+    }
 
 }
