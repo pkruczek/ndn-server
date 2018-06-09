@@ -1,0 +1,16 @@
+version: '2'
+
+services:
+  nfd:
+    container_name: ndn-nfd
+    image: lasseufpa/nfd
+    ports:
+      - 6363:6363
+    volumes:
+      - /root/.ndn
+  server:
+    container_name: ndn-server
+    build: ./server
+    network_mode: service:nfd
+    volumes_from:
+      - nfd
